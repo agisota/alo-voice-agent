@@ -27,6 +27,7 @@ from livekit.agents import (
     utils,
 )
 from livekit.agents.beta.tools import EndCallTool
+from livekit.agents.llm import function_tool
 from livekit.plugins import noise_cancellation, xai
 
 logger = logging.getLogger("alo-agent")
@@ -96,7 +97,7 @@ class AloAgent(Agent):
             allow_interruptions=False,
         )
 
-    @Agent.tool("web_search")
+    @function_tool()
     async def web_search(self, ctx: RunContext, query: str) -> str:
         """Search the web for current information on any topic."""
         try:
@@ -128,7 +129,7 @@ class AloAgent(Agent):
             logger.error(f"Web search error: {e}")
             return f"Search failed: {e}"
 
-    @Agent.tool("brave_search")
+    @function_tool()
     async def brave_search(self, ctx: RunContext, query: str) -> str:
         """Search the web using Brave Search for current information."""
         if not BRAVE_SEARCH_API_KEY:
@@ -162,7 +163,7 @@ class AloAgent(Agent):
             logger.error(f"Brave search error: {e}")
             return f"Search failed: {e}"
 
-    @Agent.tool("deep_think")
+    @function_tool()
     async def deep_think(self, ctx: RunContext, problem: str) -> str:
         """Think deeply about a complex problem using chain-of-thought reasoning."""
         thinker = inference.LLM(model="xai/grok-4-1-fast")
