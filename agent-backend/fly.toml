@@ -1,0 +1,12 @@
+app = "alo-voice-agent"
+primary_region = "ams"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[processes]
+  app = "python agent.py start"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
