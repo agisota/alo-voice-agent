@@ -36,6 +36,7 @@ load_dotenv(".env.local")
 AGENT_NAME = "alo"
 
 BRAVE_SEARCH_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY", "")
+EXA_API_KEY = os.getenv("EXA_API_KEY", "")
 
 SYSTEM_INSTRUCTIONS = """You are Alo — a sharp, reliable voice assistant for a solo founder.
 
@@ -100,13 +101,15 @@ class AloAgent(Agent):
     @function_tool()
     async def web_search(self, ctx: RunContext, query: str) -> str:
         """Search the web for current information on any topic."""
+        if not EXA_API_KEY:
+            return "Exa API key not configured."
         try:
             session = utils.http_context.http_session()
             timeout = aiohttp.ClientTimeout(total=15)
             resp = await session.get(
                 "https://api.exa.ai/search",
                 headers={
-                    "x-api-key": "30d3ac18-b49c-4f44-b7db-19549d51a108",
+                    "x-api-key": EXA_API_KEY,
                     "Content-Type": "application/json",
                 },
                 params={"query": query, "num_results": 5, "type": "neural"},
