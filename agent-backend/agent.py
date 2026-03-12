@@ -3,6 +3,7 @@ AloAgent — Always-on voice AI agent with screen awareness.
 Uses xAI Grok realtime voice model + LiveKit Agents SDK.
 """
 import logging
+import os
 from datetime import UTC, datetime
 
 import aiohttp
@@ -33,6 +34,8 @@ load_dotenv(".env.local")
 
 AGENT_NAME = "alo"
 
+BRAVE_SEARCH_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY", "")
+
 SYSTEM_INSTRUCTIONS = """You are Alo — a sharp, reliable voice assistant for a solo founder.
 
 # Personality
@@ -49,9 +52,15 @@ SYSTEM_INSTRUCTIONS = """You are Alo — a sharp, reliable voice assistant for a
 
 # Capabilities
 - Answer questions, explain topics, brainstorm ideas.
-- Analyze what's on the user's screen when screen share is active.
+- Analyze what's on the user's screen in real-time when screen share is active.
 - Search the web for current information when needed.
 - Deep thinking/reasoning for complex problems — take time to reason through.
+
+# Screen sharing
+- When the user shares their screen, you receive a continuous video stream.
+- You can see what they see in real-time.
+- Proactively comment on what you see if relevant.
+- When asked about the screen, describe what you currently observe.
 
 # Conversational flow
 - Prefer the simplest safe step first.
@@ -119,6 +128,40 @@ class AloAgent(Agent):
             logger.error(f"Web search error: {e}")
             return f"Search failed: {e}"
 
+    @Agent.tool("brave_search")
+    async def brave_search(self, ctx: RunContext, query: str) -> str:
+        """Search the web using Brave Search for current information."""
+        if not BRAVE_SEARCH_API_KEY:
+            return "Brave Search API key not configured."
+        try:
+            session = utils.http_context.http_session()
+            timeout = aiohttp.ClientTimeout(total=15)
+            resp = await session.get(
+                "https://api.search.brave.com/res/v1/web/search",
+                headers={
+                    "X-Subscription-Token": BRAVE_SEARCH_API_KEY,
+                    "Accept": "application/json",
+                },
+                params={"q": query, "count": 5},
+                timeout=timeout,
+            )
+            if resp.status != 200:
+                return f"Brave search failed with status {resp.status}"
+            data = await resp.json()
+            results = data.get("web", {}).get("results", [])
+            if not results:
+                return "No results found."
+            summaries = []
+            for r in results[:5]:
+                title = r.get("title", "No title")
+                url = r.get("url", "")
+                desc = r.get("description", "")[:200]
+                summaries.append(f"{title}\n{url}\n{desc}")
+            return "\n\n".join(summaries)
+        except Exception as e:
+            logger.error(f"Brave search error: {e}")
+            return f"Search failed: {e}"
+
     @Agent.tool("deep_think")
     async def deep_think(self, ctx: RunContext, problem: str) -> str:
         """Think deeply about a complex problem using chain-of-thought reasoning."""
@@ -184,7 +227,6 @@ async def on_session_end(ctx: JobContext) -> None:
 
     logger.info(f"Session summary: {summary}")
 
-    # Log summary locally (can be extended to webhook/Obsidian/MongoDB)
     body = {
         "job_id": report.job_id,
         "room_id": report.room_id,
@@ -219,6 +261,9 @@ async def entrypoint(ctx: JobContext):
                     == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
                     else noise_cancellation.BVC()
                 ),
+            ),
+            video_input=room_io.VideoInputOptions(
+                enabled=True,
             ),
         ),
     )

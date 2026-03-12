@@ -12,7 +12,7 @@ final class AppState: ObservableObject {
     let agentController: AgentController
 
     // Configuration (persisted)
-    @AppStorage("livekitURL") var livekitURL = "ws://localhost:7880"
+    @AppStorage("livekitURL") var livekitURL = "wss://zed-uqe0ad8e.livekit.cloud"
     @AppStorage("roomName") var roomName = "alo-room"
     @AppStorage("userIdentity") var userIdentity = "solofounder"
 

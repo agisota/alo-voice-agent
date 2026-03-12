@@ -1,6 +1,8 @@
 import Foundation
+import AppKit
 import LiveKit
 import Combine
+import Carbon.HIToolbox
 
 @MainActor
 final class AgentController: ObservableObject {
@@ -10,8 +12,55 @@ final class AgentController: ObservableObject {
 
     let livekitService: LiveKitService
 
+    private var eventMonitor: Any?
+
     init(livekitService: LiveKitService) {
         self.livekitService = livekitService
+    }
+
+    // MARK: - Global Hotkey (Left Control)
+
+    func startGlobalHotkey() {
+        stopGlobalHotkey()
+
+        // Monitor key down — left control pressed
+        let downMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            guard let self else { return }
+            let isLeftControl = event.modifierFlags.contains(.control)
+                && event.keyCode == UInt16(kVK_Control)
+
+            Task { @MainActor in
+                if isLeftControl && !self.isTalking && self.isPushToTalk {
+                    await self.startTalking()
+                } else if !isLeftControl && self.isTalking && self.isPushToTalk {
+                    await self.stopTalking()
+                }
+            }
+        }
+        eventMonitor = downMonitor
+
+        // Also monitor local events (when app is focused)
+        NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            guard let self else { return event }
+            let isLeftControl = event.modifierFlags.contains(.control)
+                && event.keyCode == UInt16(kVK_Control)
+
+            Task { @MainActor in
+                if isLeftControl && !self.isTalking && self.isPushToTalk {
+                    await self.startTalking()
+                } else if !isLeftControl && self.isTalking && self.isPushToTalk {
+                    await self.stopTalking()
+                }
+            }
+            return event
+        }
+    }
+
+    func stopGlobalHotkey() {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
     }
 
     // MARK: - Push to Talk
@@ -33,11 +82,13 @@ final class AgentController: ObservableObject {
     func togglePushToTalk() {
         isPushToTalk.toggle()
         if isPushToTalk {
-            // Disable mic by default in PTT mode
+            startGlobalHotkey()
             Task {
                 try? await livekitService.room.localParticipant.setMicrophone(enabled: false)
                 livekitService.isMicEnabled = false
             }
+        } else {
+            stopGlobalHotkey()
         }
     }
 
@@ -53,6 +104,10 @@ final class AgentController: ObservableObject {
             payload: payload
         )
         return response
+    }
+
+    deinit {
+        // eventMonitor cleanup handled in stopGlobalHotkey
     }
 }
 

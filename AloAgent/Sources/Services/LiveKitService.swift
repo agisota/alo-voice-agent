@@ -48,6 +48,8 @@ final class LiveKitService: ObservableObject {
         isMicEnabled = newState
     }
 
+    // MARK: - Realtime Screen Streaming
+
     func startScreenShare() async throws {
         try await room.localParticipant.setScreenShare(enabled: true)
         isScreenSharing = true
@@ -73,8 +75,8 @@ final class LiveKitService: ObservableObject {
         process.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/lk")
         process.arguments = [
             "token", "create",
-            "--api-key", "devkey",
-            "--api-secret", "devsecret",
+            "--api-key", "APIkgYvMNZJAqun",
+            "--api-secret", "buH0XcsqH3JfqC1XuFBU5H81jnp8zfRLOIL6QmAfN0TB",
             "--join",
             "--room", roomName,
             "--identity", identity,

@@ -153,24 +153,23 @@ struct ContentView: View {
             .buttonStyle(.bordered)
             .tint(livekitService.isMicEnabled ? .green : .red)
 
-            // Push-to-talk
+            // Push-to-talk (Left Control global hotkey)
             Button(action: {
                 agentController.togglePushToTalk()
             }) {
-                Image(systemName: agentController.isPushToTalk ? "hand.raised.fill" : "hand.raised")
-                    .font(.title2)
-                    .frame(width: 44, height: 44)
+                VStack(spacing: 2) {
+                    Image(systemName: agentController.isPushToTalk ? "hand.raised.fill" : "hand.raised")
+                        .font(.title2)
+                    if agentController.isPushToTalk {
+                        Text("L-Ctrl")
+                            .font(.system(size: 8))
+                            .foregroundColor(.orange)
+                    }
+                }
+                .frame(width: 44, height: 44)
             }
             .buttonStyle(.bordered)
             .tint(agentController.isPushToTalk ? .orange : .gray)
-            .simultaneousGesture(
-                LongPressGesture(minimumDuration: 0.1)
-                    .onChanged { _ in
-                        if agentController.isPushToTalk {
-                            Task { await agentController.startTalking() }
-                        }
-                    }
-            )
 
             // Screen share
             Button(action: {

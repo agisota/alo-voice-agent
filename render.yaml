@@ -1,0 +1,19 @@
+services:
+  - type: worker
+    name: alo-voice-agent
+    runtime: docker
+    dockerfilePath: agent-backend/Dockerfile
+    dockerContext: agent-backend
+    region: frankfurt
+    plan: starter
+    envVars:
+      - key: LIVEKIT_URL
+        value: wss://zed-uqe0ad8e.livekit.cloud
+      - key: LIVEKIT_API_KEY
+        value: APIkgYvMNZJAqun
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: XAI_API_KEY
+        sync: false
+      - key: BRAVE_SEARCH_API_KEY
+        sync: false
