@@ -8,7 +8,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/livekit/client-sdk-swift", from: "2.2.0"),
-        .package(url: "https://github.com/livekit/components-swift", from: "1.0.0"),
+        .package(url: "https://github.com/livekit/components-swift", from: "0.1.6"),
     ],
     targets: [
         .executableTarget(

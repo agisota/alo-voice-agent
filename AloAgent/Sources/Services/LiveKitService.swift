@@ -13,20 +13,11 @@ final class LiveKitService: ObservableObject {
     private var roomDelegate: RoomDelegateHandler?
 
     func connect(url: String, roomName: String, identity: String) async throws {
-        // Generate token locally for dev, or fetch from server
-        let token = try await fetchToken(roomName: roomName, identity: identity, serverURL: url)
+        let token = try await fetchToken(roomName: roomName, identity: identity)
 
-        let connectOptions = ConnectOptions(
-            autoSubscribe: true
-        )
+        let connectOptions = ConnectOptions(autoSubscribe: true)
+        let roomOptions = RoomOptions()
 
-        let roomOptions = RoomOptions(
-            defaultScreenShareCaptureOptions: ScreenShareCaptureOptions(
-                useBroadcastExtension: false
-            )
-        )
-
-        // Set up delegate
         let delegate = RoomDelegateHandler(service: self)
         self.roomDelegate = delegate
         room.add(delegate: delegate)
@@ -35,7 +26,6 @@ final class LiveKitService: ObservableObject {
         isConnected = true
         isMicEnabled = room.localParticipant.isMicrophoneEnabled()
 
-        // Find agent participant
         for (_, participant) in room.remoteParticipants {
             if participant.identity?.stringValue.contains("agent") == true {
                 agentParticipant = participant
@@ -59,21 +49,12 @@ final class LiveKitService: ObservableObject {
     }
 
     func startScreenShare() async throws {
-        let sources = try await MacOSScreenCapturer.sources(for: .display)
-        guard let source = sources.first else {
-            throw AloError.noScreenSource
-        }
-        let track = LocalVideoTrack.createMacOSScreenShareTrack(source: source)
-        try await room.localParticipant.publish(videoTrack: track)
+        try await room.localParticipant.setScreenShare(enabled: true)
         isScreenSharing = true
     }
 
     func stopScreenShare() async throws {
-        for publication in room.localParticipant.videoTracks {
-            if publication.value.source == .screenShareVideo {
-                try await room.localParticipant.unpublish(publication: publication.value)
-            }
-        }
+        try await room.localParticipant.setScreenShare(enabled: false)
         isScreenSharing = false
     }
 
@@ -87,12 +68,7 @@ final class LiveKitService: ObservableObject {
 
     // MARK: - Token
 
-    private func fetchToken(roomName: String, identity: String, serverURL: String) async throws -> String {
-        // For local dev: use livekit-cli or a token server
-        // For production: call your token endpoint
-        let tokenURL = "http://localhost:7880/token?room=\(roomName)&identity=\(identity)"
-
-        // Fallback: generate via livekit-cli
+    private func fetchToken(roomName: String, identity: String) async throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/lk")
         process.arguments = [
@@ -112,7 +88,8 @@ final class LiveKitService: ObservableObject {
         process.waitUntilExit()
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let token = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+        guard let token = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !token.isEmpty else {
             throw AloError.tokenGenerationFailed
         }
         return token
@@ -128,7 +105,7 @@ final class RoomDelegateHandler: RoomDelegate, @unchecked Sendable {
         self.service = service
     }
 
-    nonisolated func room(_ room: Room, participantDidJoin participant: RemoteParticipant) {
+    nonisolated func room(_ room: Room, participantDidConnect participant: RemoteParticipant) {
         Task { @MainActor in
             if participant.identity?.stringValue.contains("agent") == true {
                 service?.agentParticipant = participant
@@ -136,7 +113,7 @@ final class RoomDelegateHandler: RoomDelegate, @unchecked Sendable {
         }
     }
 
-    nonisolated func room(_ room: Room, participantDidLeave participant: RemoteParticipant) {
+    nonisolated func room(_ room: Room, participantDidDisconnect participant: RemoteParticipant) {
         Task { @MainActor in
             if participant.identity == service?.agentParticipant?.identity {
                 service?.agentParticipant = nil
@@ -144,8 +121,7 @@ final class RoomDelegateHandler: RoomDelegate, @unchecked Sendable {
         }
     }
 
-    nonisolated func room(_ room: Room, participant: any Participant, didReceiveData data: Data, forTopic topic: String) {
-        // Handle transcription data from agent
+    nonisolated func room(_ room: Room, participant: RemoteParticipant?, didReceiveData data: Data, forTopic topic: String, encryptionType: EncryptionType) {
         if topic == "lk-chat-topic" || topic == "transcription" {
             if let text = String(data: data, encoding: .utf8) {
                 Task { @MainActor in
